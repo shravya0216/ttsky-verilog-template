@@ -20,7 +20,7 @@ project:
   # utilization number comes back from this run, this can be safely
   # reduced if it's far under budget -- but 8x2 is the safe starting point
   # to avoid a second area-related failure.
-  tiles: "3x2"   # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2 or 8x2
+  tiles: "4x2"   # Valid values: 1x1, 1x2, 2x2, 3x2, 4x2, 6x2 or 8x2
 
   # Your top module name must start with "tt_um_".
   top_module: "tt_um_mips_i2c"
