@@ -16,6 +16,7 @@ module instruction_memory (
     input        clk,
     input [31:0] PC_out,
     output [31:0] instruction_code,
+    input        halted,     // RUN=0 or DONE: fetch port serves I2C readback
     input        prog_we,
     input [5:0]  prog_addr,
     input [31:0] prog_wdata,
@@ -26,10 +27,11 @@ module instruction_memory (
 
     reg [31:0] IM [IM_WORDS-1:0];
 
-    assign instruction_code = IM[PC_out[IM_AW+1:2]];
+    // While halted, PC and IF/ID are held, so the fetched word is ignored and
+    // the fetch port can read prog_addr for I2C readback (valid only while halted).
+    assign instruction_code = IM[halted ? prog_addr[IM_AW-1:0] : PC_out[IM_AW+1:2]];
 
-    // I2C readback of the word at prog_addr.
-    assign prog_rdata = IM[prog_addr[IM_AW-1:0]];
+    assign prog_rdata = instruction_code;
 
     always @(posedge clk) begin
         if (prog_we)

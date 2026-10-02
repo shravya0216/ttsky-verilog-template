@@ -12,6 +12,7 @@ module data_memory (
     input [31:0] rd_addr,
     input [31:0] write_data,
     output reg [31:0] rd_data,
+    input        halted,     // RUN=0 or DONE: read port serves I2C readback
     input        prog_we,
     input [5:0]  prog_addr,
     input [31:0] prog_wdata,
@@ -23,8 +24,10 @@ module data_memory (
     integer i;
     reg [31:0] DM [DM_WORDS-1:0];
 
-    // I2C readback of DM[prog_addr].
-    assign prog_rdata = DM[prog_addr[DM_AW-1:0]];
+    // While halted the pipeline is frozen, so the CPU read port reads
+    // prog_addr for I2C readback (valid only while halted). Only the READ
+    // address is switched: a frozen EX/MEM can still hold Mem_write=1.
+    assign prog_rdata = DM[halted ? prog_addr[DM_AW-1:0] : rd_addr[DM_AW-1:0]];
 
     always @(posedge clk) begin
         if (rst) begin
@@ -40,7 +43,7 @@ module data_memory (
 
     always @(*) begin
         if (Mem_rd)
-            rd_data = DM[rd_addr[DM_AW-1:0]];
+            rd_data = prog_rdata;
         else
             rd_data = 32'b0;
     end

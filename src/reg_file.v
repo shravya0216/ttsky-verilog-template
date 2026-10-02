@@ -13,6 +13,7 @@ module reg_file(
     input        Reg_write,
     output [31:0] D_1,
     output [31:0] D_2,
+    input        halted,     // RUN=0 or DONE: rs port serves I2C readback
     input        prog_we,
     input [4:0]  prog_addr,
     input [31:0] prog_wdata,
@@ -21,11 +22,15 @@ module reg_file(
     integer i;
     reg [31:0] RF [31:0];
 
-    assign D_1 = (Reg_write && (rd == rs) && (rd != 5'd0)) ? write_data : RF[rs];
+    // While halted the pipeline is frozen, so the rs port is free: it reads
+    // prog_addr for I2C readback instead of a third read-mux tree. Readback
+    // is only valid while halted.
+    wire [4:0] ra = halted ? prog_addr : rs;
+
+    assign D_1 = (Reg_write && (rd == ra) && (rd != 5'd0)) ? write_data : RF[ra];
     assign D_2 = (Reg_write && (rd == rt) && (rd != 5'd0)) ? write_data : RF[rt];
 
-    // I2C readback of register prog_addr.
-    assign prog_rdata = RF[prog_addr];
+    assign prog_rdata = D_1;
 
     wire        sel_prog = prog_we && (prog_addr != 5'd0);
     wire        wr_en    = sel_prog || (Reg_write && (rd != 5'd0));

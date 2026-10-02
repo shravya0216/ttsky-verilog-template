@@ -166,7 +166,7 @@ module top (
         .rst(rst), .clk(clk), .PC_out(PC_out),
         .instruction_code(instruction_code),
         .prog_we(imem_prog_we), .prog_addr(imem_prog_addr),
-        .prog_wdata(imem_prog_wdata), .prog_rdata(imem_prog_rdata)
+        .prog_wdata(imem_prog_wdata), .halted(pipeline_freeze), .prog_rdata(imem_prog_rdata)
     );
 
     comparator COMP_inst(.instruction_code(instruction_code), .comparator(comparator_w));
@@ -204,7 +204,7 @@ module top (
         .clk(clk), .rst(rst), .rs(rs_w), .rt(rt_w), .rd(MEM_WB_rd),
         .write_data(write_data_w), .Reg_write(MEM_WB_WB[1]), .D_1(D_1), .D_2(D_2),
         .prog_we(regfile_prog_we), .prog_addr(regfile_prog_addr), .prog_wdata(regfile_prog_wdata),
-        .prog_rdata(regfile_prog_rdata)
+        .halted(pipeline_freeze), .prog_rdata(regfile_prog_rdata)
     );
 
     control_unit CU_inst(.rst(rst), .opcode(opcode_w), .EX(EX_w), .M(M_w), .WB(WB_w));
@@ -250,7 +250,7 @@ module top (
         .clk(clk), .rst(rst), .Mem_rd(EX_MEM_M[1]), .Mem_write(EX_MEM_M[0]),
         .rd_addr(EX_MEM_R), .write_data(EX_MEM_rt_f), .rd_data(mem_rd_data_w),
         .prog_we(dmem_prog_we), .prog_addr(dmem_prog_addr), .prog_wdata(dmem_prog_wdata),
-        .prog_rdata(dmem_prog_rdata)
+        .halted(pipeline_freeze), .prog_rdata(dmem_prog_rdata)
     );
 
     M_WB_Register MEM_WB_inst(
