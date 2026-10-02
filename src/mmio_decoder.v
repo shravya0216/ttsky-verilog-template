@@ -2,7 +2,7 @@
 
 // MMIO map (IMEM/DMEM depth set by IM_AW / DM_AW; defaults 16 / 8 words):
 //   0x0000 .. 0x0000+4*(2**IM_AW)-4 : IMEM,    2**IM_AW x 32-bit words
-//   0x1000-0x107C : REGFILE, R0-R31
+//   0x1000-0x103C : REGFILE, R0-R15
 //   0x2000 .. 0x2000+4*(2**DM_AW)-4 : DMEM,    2**DM_AW x 32-bit words
 // Word addresses beyond the implemented depth are UNMAPPED: writes are
 // ignored and reads return 0xDEADBEEF (they never alias onto real words).
@@ -48,9 +48,9 @@ module mmio_decoder (
     assign imem_prog_addr  = mmio_addr[7:2];
     assign imem_prog_wdata = mmio_wdata;
 
-    // REGFILE: 0x1000-0x107C (32 x 4 bytes = 128 bytes) - unchanged size
+    // REGFILE: 0x1000-0x103C (16 x 4 bytes = 64 bytes)
     assign regfile_prog_we    = mmio_wr && (mmio_addr >= 16'h1000) &&
-                                (mmio_addr <= 16'h107C) &&
+                                (mmio_addr <= 16'h103C) &&
                                 (mmio_addr[1:0] == 2'b00);
     assign regfile_prog_addr  = mmio_addr[6:2];
     assign regfile_prog_wdata = mmio_wdata;
@@ -66,7 +66,7 @@ module mmio_decoder (
     always @(*) begin
         if (imem_hit)
             mmio_rdata = imem_rdata;
-        else if ((mmio_addr >= 16'h1000) && (mmio_addr <= 16'h107C))
+        else if ((mmio_addr >= 16'h1000) && (mmio_addr <= 16'h103C))
             mmio_rdata = regfile_rdata;
         else if (dmem_hit)
             mmio_rdata = dmem_rdata;

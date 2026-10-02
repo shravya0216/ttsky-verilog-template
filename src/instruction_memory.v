@@ -22,7 +22,7 @@ module instruction_memory (
     input [31:0] prog_wdata,
     output [31:0] prog_rdata
 );
-    localparam IM_AW    = 4;    // 2**IM_AW = 16 words. Must match mmio_decoder.v's IM_AW and BTB.v's BTB_W (= IM_AW+3).
+    localparam IM_AW    = 4;    // 2**IM_AW = 16 words. Must match mmio_decoder.v's IM_AW.
     localparam IM_WORDS = 1 << IM_AW;
 
     reg [31:0] IM [IM_WORDS-1:0];

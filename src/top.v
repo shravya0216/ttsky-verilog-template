@@ -13,7 +13,7 @@
 // no SRAM macros). Depths are log2 parameters:
 //   IMEM: 2**IM_AW 32-bit words  (default IM_AW=4 -> 16 words = 512 bits)
 //   DMEM: 2**DM_AW 32-bit words  (default DM_AW=3 ->  8 words = 256 bits)
-//   REGFILE: 32 x 32-bit words (1024 bits, fixed by the ISA)
+//   REGFILE: 16 x 32-bit words (r0 hardwired 0; r16-r31 alias r0-r15)
 // (IM_AW=6, DM_AW=6 restores the old 64/64 sizes but does NOT fit any TT tile.)
 module top (
     input  clk,
@@ -47,7 +47,6 @@ module top (
     wire [31:0] R_w;
     wire zero_w;
     wire [4:0] rd_w;
-    wire PHT_write_w, BHT_write_w, BTB_write_w;
 
     wire [1:0] EX_MEM_M, EX_MEM_WB;
     wire [4:0] EX_MEM_rs, EX_MEM_rt;
@@ -116,11 +115,6 @@ module top (
     wire [31:0] PC_in;
     wire [31:0] instruction_code;
     wire comparator_w;
-    wire [3:0] PHT_rd_data;
-    wire [31:0] BTB_rd_data;
-    wire [3:0] BHT_rd_addr_w;
-    wire BHT_rd_data_w;
-    wire [31:0] PC_prediction_if_branch;
     wire PC_stall;
     wire [31:0] PC_calculated;
 
@@ -129,9 +123,12 @@ module top (
     wire [3:0] IF_ID_BHT_rd_addr;
     wire IF_ID_stall, IF_ID_flush;
 
-    wire [4:0] rs_w = IF_ID_instruction_code[25:21];
-    wire [4:0] rt_w = IF_ID_instruction_code[20:16];
-    wire [4:0] rd_maybe_w = IF_ID_instruction_code[15:11];
+    // 16 registers: only the low 4 bits of each 5-bit register field are used,
+    // so r16-r31 alias r0-r15 (r16 reads 0). Truncating HERE, at decode, keeps
+    // the regfile, forwarding and stall comparisons consistent.
+    wire [4:0] rs_w = {1'b0, IF_ID_instruction_code[24:21]};
+    wire [4:0] rt_w = {1'b0, IF_ID_instruction_code[19:16]};
+    wire [4:0] rd_maybe_w = {1'b0, IF_ID_instruction_code[14:11]};
     wire [15:0] imm_w = IF_ID_instruction_code[15:0];
     wire [5:0] opcode_w = IF_ID_instruction_code[31:26];
 
@@ -171,30 +168,14 @@ module top (
 
     comparator COMP_inst(.instruction_code(instruction_code), .comparator(comparator_w));
 
-    PHT PHT_inst(
-        .clk(clk), .rd_addr(PC_out[5:2]), .PHT_write_control(PHT_write_w),
-        .ID_EX_PHT_wr_addr(ID_EX_PC_out[5:2]), .PHT_write_data(zero_w),
-        .rst(rst), .PHT_rd_data(PHT_rd_data)
-    );
-
-    BTB BTB_inst(
-        .clk(clk), .rd_addr(PC_out[5:2]), .BTB_write_control(BTB_write_w),
-        .ID_EX_PHT_wr_addr(ID_EX_PC_out[5:2]), .BTB_write_data(PC_calculated),
-        .rst(rst), .BTB_rd_data(BTB_rd_data)
-    );
-
-    Xor_result XOR_inst(.PHT_rd_data(PHT_rd_data), .PHT_rd_addr(PC_out[5:2]), .BHT_rd_addr(BHT_rd_addr_w));
-    BHT BHT_inst(
-        .clk(clk), .rd_addr(BHT_rd_addr_w), .BHT_write_control(BHT_write_w),
-        .ID_EX_BHT_wr_addr(ID_EX_BHT_rd_addr), .BHT_write_data(zero_w),
-        .rst(rst), .BHT_rd_data(BHT_rd_data_w)
-    );
-    mux_1 MUX1_inst(.PC_out(PC_out), .BTB_rd_data(BTB_rd_data), .BHT_rd_data(BHT_rd_data_w), .PC_prediction_if_branch(PC_prediction_if_branch));
-    mux_2 MUX2_inst(.rst(rst), .PC_out(PC_out), .PC_prediction_if_branch(PC_prediction_if_branch), .comparator(comparator_w), .PC_in(PC_in));
+    // Static not-taken branch prediction (PHT/BHT/BTB removed for area).
+    // A taken beq is caught in EX by Flushing_unit (PC_calculated !=
+    // IF_ID_PC_out) and redirected, costing 2 bubbles; results are unchanged.
+    assign PC_in = PC_out + 32'd4;
 
     IF_ID_register IF_ID_inst(
         .clk(clk), .instruction_code(instruction_code), .comparator(comparator_w),
-        .PC_out(PC_out), .BHT_rd_addr(BHT_rd_addr_w), .IF_ID_stall(IF_ID_stall),
+        .PC_out(PC_out), .BHT_rd_addr(4'b0), .IF_ID_stall(IF_ID_stall),
         .IF_ID_flush(IF_ID_flush), .rst(rst), .freeze(pipeline_freeze), .stop_fetch(stop_fetch),
         .IF_ID_instruction_code(IF_ID_instruction_code), .IF_ID_comparator(IF_ID_comparator),
         .IF_ID_PC_out(IF_ID_PC_out), .IF_ID_BHT_rd_addr(IF_ID_BHT_rd_addr)
@@ -233,7 +214,6 @@ module top (
     mux_2_execution MUX2_EX_inst(.zero(zero_w), .immediate(ID_EX_immediate), .PC_out(ID_EX_PC_out), .PC_calculated(PC_calculated));
     mux_3_execution MUX3_EX_inst(.ID_EX_rd_maybe(ID_EX_rd_maybe), .ID_EX_rt(ID_EX_rt), .Reg_dst(ID_EX_EX[3]), .rd(rd_w));
     Flushing_unit FLUSH_inst(.comparator(ID_EX_comparator), .IF_ID_PC_out(IF_ID_PC_out), .PC_calculated(PC_calculated), .IF_ID_flush(IF_ID_flush), .PC_flush(PC_flush), .ID_EX_flush(ID_EX_flush));
-    branching_unit BRANCH_inst(.comparator(ID_EX_comparator), .IF_ID_PC_out(IF_ID_PC_out), .PC_calculated(PC_calculated), .PHT_write(PHT_write_w), .BHT_write(BHT_write_w), .BTB_write(BTB_write_w));
     stalling_unit STALL_inst(
         .IF_ID_IC(IF_ID_instruction_code), .rst(rst), .ID_EX_MEM_Rd(ID_EX_M[1]), .ID_EX_rt(ID_EX_rt),
         .IF_ID_rs(rs_w), .IF_ID_rt(rt_w), .IF_ID_stall(IF_ID_stall), .ID_EX_stall(ID_EX_stall), .PC_stall(PC_stall)

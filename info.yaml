@@ -37,9 +37,6 @@ project:
     - "instruction_memory.v"
     - "reg_file.v"
     - "ALU.v"
-    - "BHT.v"
-    - "BTB.v"
-    - "branching_unit.v"
     - "comparator.v"
     - "control_unit.v"
     - "EX_MEM_register.v"
@@ -50,17 +47,13 @@ project:
     - "ID_EX_register.v"
     - "IF_ID_register.v"
     - "M_WB_register.v"
-    - "mux_1.v"
     - "mux_1_execution.v"
-    - "mux_2.v"
     - "mux_2_execution.v"
     - "mux_3_execution.v"
     - "Pc.v"
-    - "PHT.v"
     - "Sign_extender.v"
     - "stalling_unit.v"
     - "Write_back_mux.v"
-    - "Xor_result.v"
 
   # The pinout of your project. Must match tt_um_mips_i2c.v exactly.
 pinout:

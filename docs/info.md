@@ -8,8 +8,8 @@ writeback) with:
   write-first bypass in the register file for the one same-cycle
   WB-write/ID-read case not covered by pipeline forwarding)
 - Load-use hazard detection with automatic pipeline stalling
-- Dynamic branch prediction (BHT + BTB + PHT-indexed pattern history) with
-  correct misprediction recovery and pipeline flush
+- Static not-taken branch prediction; a taken `beq` is resolved in EX and
+  the pipeline is flushed and redirected
 
 Because the on-chip instruction memory, data memory, and register file are
 all normally fixed at synthesis time, this design adds a memory-mapped I2C
@@ -18,23 +18,27 @@ fabricated:
 
 | MMIO Address Range | Region |
 |---|---|
-| 0x0000 - 0x00FC | Instruction memory (64 words) |
-| 0x1000 - 0x107C | Register file (32 registers, R0 write-protected) |
-| 0x2000 - 0x20FC | Data memory (64 words) |
-| 0x3000 | CSR (bit 0 = RUN) |
+| 0x0000 - 0x003C | Instruction memory (16 words) |
+| 0x1000 - 0x103C | Register file (16 registers, R0 reads 0) |
+| 0x2000 - 0x201C | Data memory (8 words) |
+| 0x3000 | CSR (bit 0 = RUN, bit 1 = DONE) |
 | 0x3004 | TARGET_PC (halt address) |
+| 0x3008 | Live PC (read-only) |
+
+Any other address reads 0xDEADBEEF. Instruction memory, register file and
+data memory read back correctly only while halted (`RUN=0` or `DONE=1`).
+Register fields are still 5 bits wide, but only the low 4 bits are used:
+r16-r31 alias r0-r15. Registers are not reset, so a program must initialise
+every register it reads.
 
 The pipeline is held frozen while `RUN=0`. Writing `RUN=1` releases it to
 execute from address 0. Once the program counter reaches `TARGET_PC`, fetch
 is blocked, in-flight instructions are allowed to drain to completion, and
 `DONE` asserts (driven out on the `led` pin).
 
-Instruction memory and data memory were sized down to 64 words each
-(from an original 256-word version) specifically to fit Tiny Tapeout's
-area budget -- both are implemented as plain flip-flop arrays (no SRAM
-macros in this flow), and 64 words was chosen with margin above the
-actual minimum needed by the included test program (which uses IMEM
-addresses up to 0x84 and DMEM addresses up to 21).
+All memories are plain flip-flop arrays (there are no SRAM macros that fit
+a Tiny Tapeout tile), sized down from the original 256-word version to fit
+the tile area budget.
 
 ## How to test
 

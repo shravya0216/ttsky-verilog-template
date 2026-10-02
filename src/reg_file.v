@@ -1,9 +1,9 @@
 `timescale 1ns / 1ps
 
-// 32 x 32 register file. Single shared write port (I2C programming wins over
+// 16 x 32 register file (indices arrive with bit 4 = 0, see top.v). Single shared write port (I2C programming wins over
 // the CPU write-back when both fire in the same cycle; r0 is never written by
 // either). Sharing one port instead of two saves a 2:1 mux per stored bit.
-// Only r1-r31 are stored; r0 always reads 0. No reset (saves a gate per flop):
+// Only r1-r15 are stored; r0 always reads 0. No reset (saves a gate per flop):
 // registers are undefined until written, so programs must initialise every
 // register they read (over I2C or by an instruction). rst is unused.
 module reg_file(
@@ -22,7 +22,7 @@ module reg_file(
     input [31:0] prog_wdata,
     output [31:0] prog_rdata
 );
-    reg [31:0] RF [31:1];
+    reg [31:0] RF [15:1];
 
     // While halted the pipeline is frozen, so the rs port is free: it reads
     // prog_addr for I2C readback instead of a third read-mux tree. Readback
@@ -30,9 +30,9 @@ module reg_file(
     wire [4:0] ra = halted ? prog_addr : rs;
 
     assign D_1 = (ra == 5'd0) ? 32'd0 :
-                 (Reg_write && (rd == ra)) ? write_data : RF[ra];
+                 (Reg_write && (rd == ra)) ? write_data : RF[ra[3:0]];
     assign D_2 = (rt == 5'd0) ? 32'd0 :
-                 (Reg_write && (rd == rt)) ? write_data : RF[rt];
+                 (Reg_write && (rd == rt)) ? write_data : RF[rt[3:0]];
 
     assign prog_rdata = D_1;
 
@@ -43,6 +43,6 @@ module reg_file(
 
     always @(posedge clk) begin
         if (wr_en)
-            RF[wr_addr] <= wr_data;
+            RF[wr_addr[3:0]] <= wr_data;
     end
 endmodule

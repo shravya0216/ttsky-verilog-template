@@ -160,6 +160,7 @@ async def test_reset_sanity(dut):
     assert await i2c.mmio_read(0x3008) == 0, "PC should be 0 after reset"
     assert await i2c.mmio_read(0x1000) == 0, "R0 should read 0"
     assert await i2c.mmio_read(0x4000) == 0xDEADBEEF, "unmapped read"
+    assert await i2c.mmio_read(0x1040) == 0xDEADBEEF, "only 16 registers are mapped"
 
 
 @cocotb.test()
@@ -203,3 +204,33 @@ async def test_load_run_halt(dut):
     assert await i2c.mmio_read(0x3008) == 0x8, "PC should be held at TARGET_PC"
     assert await i2c.mmio_read(0x1004) == 5, "R1 should be 5"
     assert await i2c.mmio_read(0x2000) == 5, "DM[0] should be 5"
+
+
+@cocotb.test()
+async def test_branch_loop(dut):
+    """Countdown loop: taken and not-taken beq, forwarding, R2 = 3+2+1."""
+    i2c = await setup(dut)
+
+    prog = [
+        0x08010003,  # 0x00 ADDI R1,R0,3
+        0x08020000,  # 0x04 ADDI R2,R0,0
+        0x00411000,  # 0x08 loop: ADD R2,R2,R1
+        0x0821FFFF,  # 0x0C ADDI R1,R1,-1
+        0x14200001,  # 0x10 BEQ R1,R0,+1  -> 0x18 when R1==0
+        0x1400FFFC,  # 0x14 BEQ R0,R0,-4  -> 0x08 (always taken)
+        0x10020001,  # 0x18 SW R2,1(R0)   -> DM[1] = R2
+    ]
+    for k, word in enumerate(prog):
+        await i2c.mmio_write(4 * k, word)
+    await i2c.mmio_write(0x3004, 4 * len(prog))  # target_pc
+    await i2c.mmio_write(0x3000, 0x00000001)     # RUN=1
+
+    n = 0
+    while (int(dut.uo_out.value) & 1) == 0 and n < 2000:
+        await ClockCycles(dut.clk, 1)
+        n += 1
+
+    assert int(dut.uo_out.value) & 1 == 1, "led (DONE) never went high"
+    assert await i2c.mmio_read(0x1004) == 0, "R1 should count down to 0"
+    assert await i2c.mmio_read(0x1008) == 6, "R2 should be 3+2+1"
+    assert await i2c.mmio_read(0x2004) == 6, "DM[1] should be 6"
